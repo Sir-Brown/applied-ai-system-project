@@ -51,7 +51,7 @@ note: Sleep and meditation call for very quiet, acoustic, peaceful music.
 
 ## Night driving
 kind: activity
-keywords: night drive, driving at night, late-night drive, late-night, midnight
+keywords: night drive, driving at night, late-night drive, night driving
 genre: synthwave
 mood: moody
 energy: 0.75

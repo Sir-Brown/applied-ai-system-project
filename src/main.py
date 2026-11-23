@@ -9,6 +9,11 @@ Options:
   --list                                                     show the plain list format instead of a table
   --advanced                                                 also run the advanced-feature profiles
   --profile NAME                                             only run profiles whose name contains NAME
+
+Agent mode (plain-English requests; retrieval + plan + critique + revise):
+  --ask "late-night coding, nothing too loud"                ask the agent instead of using the fixed profiles
+  --trace                                                    also print the agent's step-by-step reasoning trace
+  --no-retrieval                                             turn the glossary documents off (baseline for comparison)
 """
 
 import argparse
@@ -16,8 +21,12 @@ import textwrap
 from pathlib import Path
 
 try:  # works with `python -m src.main` from the project root
+    from src.agent import MusicAgent
+    from src.agent_log import setup_logging
     from src.recommender import DEFAULT_MODE, MODES, load_songs, recommend_songs
 except ImportError:  # works when running src/main.py directly (e.g. from the IDE)
+    from agent import MusicAgent
+    from agent_log import setup_logging
     from recommender import DEFAULT_MODE, MODES, load_songs, recommend_songs
 
 # Resolve the CSV relative to this file so it works from any working directory.
@@ -141,6 +150,40 @@ def print_recommendations(
         print()
 
 
+def print_agent_result(result, show_trace: bool = False) -> None:
+    """Print an AgentResult: interpretation, sources, table, confidence, and optional trace."""
+    print(f"\n=== Agent request: {result.request!r} ===")
+    print(f"Status: {result.status}")
+    print(result.message)
+
+    if result.plan and result.plan.sources:
+        profile = result.plan.profile
+        shown = {k: v for k, v in profile.items() if v is not None}
+        print("\nHow I read your request")
+        print(LINE)
+        print("Profile: " + ", ".join(f"{k}={v}" for k, v in shown.items()))
+        print(f"Mode: {result.plan.mode} | diversity penalty: {'on' if result.plan.diversity else 'off'}")
+        print("Retrieved: " + "; ".join(result.plan.sources))
+        for note in result.plan.assumptions:
+            print(f"Note: {note}")
+
+    if result.recommendations:
+        print(f"\nTop {len(result.recommendations)} recommendations")
+        print(LINE)
+        print(format_table(result.recommendations))
+        a = result.assessment
+        print(f"Confidence: {a.confidence:.2f} ({a.label}) | fit {a.fit:.2f}, evidence {a.evidence:.2f}, "
+              f"separation {a.separation:.2f} | revisions: {result.revisions}")
+        if result.status == "needs_review":
+            print("** Flagged for human review: low confidence. **")
+
+    if show_trace:
+        print("\nTrace")
+        print(LINE)
+        for i, step in enumerate(result.trace, start=1):
+            print(f"{i:>2}. {step}")
+
+
 def parse_args(argv=None) -> argparse.Namespace:
     """Parse command-line options."""
     parser = argparse.ArgumentParser(description="Music Recommender Simulation")
@@ -154,13 +197,26 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--advanced", action="store_true",
                         help="also run the profiles that use the advanced song attributes")
     parser.add_argument("--profile", help="only run profiles whose name contains this text")
+    parser.add_argument("--ask", metavar="TEXT", help="ask the agent for songs in plain English")
+    parser.add_argument("--trace", action="store_true", help="with --ask: print the agent's reasoning trace")
+    parser.add_argument("--no-retrieval", action="store_true",
+                        help="with --ask: disable the glossary documents (baseline for comparison)")
     return parser.parse_args(argv)
 
 
 def main(argv=None) -> None:
     args = parse_args(argv)
+    setup_logging(console=True)
     songs = load_songs(str(SONGS_CSV))
     print(f"Loaded songs: {len(songs)}")
+
+    if args.ask is not None:
+        agent = MusicAgent(songs, use_retrieval=not args.no_retrieval)
+        result = agent.ask(args.ask)
+        print_agent_result(result, show_trace=args.trace)
+        if result.status in ("rejected", "error"):
+            raise SystemExit(2)
+        return
 
     profiles = dict(PROFILES)
     if args.advanced:

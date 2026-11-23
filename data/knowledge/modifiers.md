@@ -12,7 +12,7 @@ negatable: yes
 
 ## Quieter
 kind: modifier
-keywords: quiet, quieter, soft, gentle, low-key, low energy, low-energy, subtle
+keywords: quiet, quieter, soft, gentle, calm, low-key, low energy, low-energy, subtle
 energy_delta: -0.20
 negatable: yes
 
