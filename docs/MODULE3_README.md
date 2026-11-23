@@ -1,4 +1,6 @@
-# 🎵 Music Recommender Simulation
+# 🎵 Music Recommender Simulation (original Module 3 README)
+
+> Preserved for reference. The final project's README is [../README.md](../README.md); paths below are relative to the repository root.
 
 ## Project Summary
 
@@ -603,7 +605,7 @@ Top 5 recommendations
 +---+---------------------+----------------+-------+-------------------------------------------+
 ```
 
-More detail on how these were built, and how I checked them, is in [ai_interactions.md](ai_interactions.md).
+More detail on how these were built, and how I checked them, is in [ai_interactions.md](../ai_interactions.md).
 
 ---
 
@@ -625,7 +627,7 @@ You will go deeper on this in your model card.
 
 Read and complete `model_card.md`:
 
-[**Model Card**](model_card.md)
+[**Model Card**](../model_card.md)
 
 Write 1 to 2 paragraphs here about what you learned:
 

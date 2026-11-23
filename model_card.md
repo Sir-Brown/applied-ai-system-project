@@ -134,3 +134,87 @@ I also ran one experiment: I turned the mood weight to 0 and ran all seven profi
 **What surprised me.** A handful of simple rules produced lists that felt like real recommendations. Chill Lofi looked just right. But the same simple rules also made *Gym Hero* show up for almost every high-energy user. It looks like taste, but it is just arithmetic. That is how a small bias can look like a personal recommendation.
 
 **What I would try next.** I went on to try all four optional challenges: more song features, different scoring modes, a diversity rule, and a clearer results table. They helped, but they did not fix the deeper limits: the catalog is tiny, and genre is matched exactly. Next I would try smarter genre matching, a much bigger catalog, and a version that learns from what a user actually plays or skips.
+
+
+---
+---
+
+# Part 2: Applied AI System Extension (Final Project)
+
+Sections 1-9 above describe the original VibeMatch 1.0 recommender. The sections below cover what was added for the final project: a plain-English **agent** that retrieves glossary documents, plans a profile, recommends, critiques its own result and revises. Setup, architecture and run evidence are in [README.md](README.md).
+
+## 10. What Changed
+
+| Added | What it does |
+|---|---|
+| Retriever (RAG) | Looks up glossary documents ([data/knowledge/](data/knowledge/)) and the catalog's vocabulary to translate the user's words into a taste profile |
+| Planner | Builds the profile from what was retrieved, and records every assumption |
+| Critic | Scores confidence (fit, evidence, separation) and detects problems such as a requested genre that is not in the catalog |
+| Revise loop | Up to 2 fixes: drop an unmatched genre/mood, switch scoring mode, turn on the diversity penalty |
+| Guardrails + logging | Refuse unsafe or malformed input safely; log each step to `logs/agent.log` |
+| Evaluation harness | 20 predefined requests with pass/fail, confidence, retrieval on/off comparison, repeatability |
+
+The scoring engine from Sections 1-9 is unchanged. The AI feature changes how a request is *understood and checked*, not how songs are scored.
+
+## 11. Limitations and Biases (Agent)
+
+- **The glossary is my opinion.** "Studying" maps to lofi, "workout" maps to pop, "date night" maps to R&B, "beach" maps to reggae. These are stereotypes. A person who studies to metal, or works out to country, is told what they "should" want. Each activity maps to exactly one genre, so the system cannot represent that taste varies.
+- **Keyword matching is brittle.** It understands only words I wrote down. "Something for when I miss summer" is not understood. Ambiguous words can mislead: "house" is read as the EDM genre even in "coffee house", and "mix" turns on the diversity penalty. I already had to remove "love" as a romantic-mood trigger because "I love jazz" was being read as a request for romance.
+- **Negation is simple.** A negation word only affects a keyword within 3 words in the same clause. "Not only jazz" or "anything but rock and metal" can be misread.
+- **English only**, and only the English vocabulary in the glossary.
+- **Tiny catalog.** 18 songs, 13 of 15 genres with a single song. A "confidence" of 0.95 means "fits this small catalog well," not "this is what you would love." There is no blues, no k-pop and no "sad" cluster, so users who want those get a fallback and a warning.
+- **Confidence is a heuristic, not a probability.** It blends three named signals with weights I chose; it has not been calibrated against real user satisfaction.
+- **Carried over from VibeMatch 1.0:** exact-match genres (metal is as far from rock as from jazz), a loudness bias toward *Gym Hero*, and no learning from behavior.
+- **No fairness evaluation across user groups.** I tested requests I invented, not requests from different kinds of listeners.
+
+## 12. Could It Be Misused, and How Is That Prevented?
+
+| Risk | Prevention in this system | Remaining gap |
+|---|---|---|
+| **Prompt-injection / instruction text** in a request ("ignore previous instructions...") | A pattern filter rejects it with a friendly message. More importantly, request text is only ever used for keyword lookup: it is never executed, never sent to a language model, never used to build a path or command, so there is nothing for an injection to take over | The pattern list is small and a rephrased attack would pass the filter. It would still be harmless for the same structural reason, but this would have to be redesigned if an LLM were added |
+| **Oversized or junk input** (resource abuse) | 300-character limit, control-character stripping, "no letters" check | No rate limiting; this is a local tool |
+| **Steering users with the glossary** (promoting particular songs or genres by editing keywords) | Glossaries are plain text in version control, so changes are reviewable; malformed sections are skipped and logged | Nothing stops a malicious maintainer; changes need code review |
+| **Overtrusting the output** | Sources, assumptions and confidence are always shown; low confidence is labelled *needs_review* and the message says to check the results yourself | A user can still ignore the warning |
+| **Privacy** | No network calls, no accounts. Requests are written to `logs/agent.log`, which is git-ignored | Logs contain whatever people type; a real deployment would need a retention policy and a rule against logging personal details |
+| **Misuse as a "taste judge"** | Intended use (Section 2) says a low score means "does not match," not "bad music" | Cultural stereotypes in the glossary remain (Section 11) |
+
+## 13. Testing Results and What Surprised Me
+
+**Results.** 58/58 unit tests pass. The evaluation harness passes 20/20 cases: 12 normal requests, 8 guardrail cases. Average confidence on answered requests is 0.85 (0.91 for requests with status *ok*). The two requests for genres missing from the catalog (blues, k-pop) were correctly flagged for human review at confidence 0.45. All 20 cases return identical results on a second run. Turning the glossary off dropped "request understood" from 12/12 to 6/12 and "recommendation correct" from 12/12 to 4/12.
+
+Caveat: I wrote the cases and expected answers myself and adjusted the system after seeing early failures, so this is a consistency check against my intent, not independent proof of quality.
+
+**What surprised me.**
+
+1. **Giving up made the confidence go up.** My first critic dropped the unmatched genre (k-pop, blues) and then scored the leftover match at 0.56 "ok," because with fewer requirements the top song fit almost perfectly. A metric that rewards dropping what the user asked for is dangerous, so a dropped requirement now caps confidence at 0.45.
+2. **A one-line stemmer bug disabled negation.** The stemmer turned "nothing" into "noth," so "nothing too loud" was read as *wanting* loud music. The unit test for negation caught it; the retrieval looked fine on the happy path.
+3. **One generic word hijacked a request.** "late-night" was a trigger for the night-driving document, so "late-night coding" returned synthwave instead of lofi. Realistic phrases found this; hand-picked test phrases would not have.
+4. **The "repetition" check punished the user for asking for something.** Requesting lofi returns three lofi songs, which the first critic called "repetitive" and "fixed" by changing the ranking. Revisions now only trigger for repetition the user did not ask for, and only while the diversity penalty is off.
+5. **One of my own tests was wrong.** The "too long" guardrail case was only 280 characters, under the 300 limit, so the system correctly accepted it and the test failed. I fixed the test, not the limit.
+
+## 14. Human Evaluation
+
+Automated checks confirm the system matches my expectations; a person should judge whether the answers are *good*. This table is a spot-check of the system's #1 pick for six requests (outputs copied from the evaluation run). **Reviewer: project author.**
+
+| Test Input | Evaluation Criteria | System's #1 pick | Automated check | Human verdict |
+|---|---|---|---|---|
+| "late-night coding, nothing too loud, a bit dreamy" | Calm, low-energy, focus-friendly | Focus Flow (lofi, energy 0.40) | Pass | _to be completed by reviewer_ |
+| "pump-up music for the gym" | Loud, high-energy | Gym Hero (pop, energy 0.93) | Pass | _to be completed by reviewer_ |
+| "sad songs for a rainy day" | Sad / mellow, slow | Coffee Shop Stories (jazz, relaxed) | Pass | _to be completed by reviewer_ |
+| "romantic dinner date" | Romantic, smooth | Velvet Hours (r&b, romantic) | Pass | _to be completed by reviewer_ |
+| "I want some blues" | Honest about missing genre | Fallback list, flagged *needs_review* at 0.45 | Pass | _to be completed by reviewer_ |
+| "no metal please, something calm" | No metal; calm | Moonlit Sonata Remix (classical, peaceful) | Pass | _to be completed by reviewer_ |
+
+Reviewer note on the one I would watch: for "sad songs for a rainy day" the #1 pick is a *relaxed* jazz song rather than the *melancholic* folk song (*Autumn Letters*, #2), because "rainy" retrieved a jazz activity that outweighs the mood. A human may reasonably disagree with that ranking.
+
+## 15. How I Collaborated with AI
+
+I worked with Claude Code (inside my repo) using a **plan-first** workflow: I asked for a plan, approved or redirected it, then had Claude implement it. Claude wrote most of the code, tests and documentation drafts. I made the product decisions, and the tests and example runs were the check on its work.
+
+**One suggestion I accepted.** I asked which planner design was best for this kind of project, and Claude recommended an **offline, rule-based planner** over a language-model planner, because anyone grading or running the project can reproduce it without an API key and identical answers make tests meaningful. I accepted it. It cost some language understanding (free-form phrasing fails), which I documented as a limitation.
+
+**One suggestion I changed.** Claude's first plan proposed building all four optional stretch features, including a few-shot "specialization" one. I narrowed that: since the specialization stretch is optional and does not fit a rule-based system naturally, I told Claude to leave it out unless it was required. It was not, so it was skipped, and the other three stretches were built. Separately, Claude's first explanation of the assignment was too jargon-heavy for me; I asked for plain language and it re-explained the project with a restaurant analogy before any code was written.
+
+**Where the AI was wrong, and how it was caught.** Claude's first implementation had real defects, all found by running the code rather than reading it: the stemmer bug that broke negation, the over-eager "late-night" trigger, a confidence score that rewarded dropping the user's genre, and a "repetition" check that fired on things the user had asked for (Section 13). Each fix has a regression test. Claude also initially wrote a test case that was itself wrong (the 280-character "too long" input), which is a reminder that AI-written tests need the same scrutiny as AI-written code.
+
+**Honest limits of this reflection.** This section describes what happened in this session. The human-evaluation verdicts in Section 14 are still mine to fill in.

@@ -79,3 +79,70 @@ I asked for a design that keeps the code modular. The AI suggested treating a mo
 **What the AI generated:** `format_table` in `src/main.py`. I chose plain ASCII formatting instead of the `tabulate` library, so there is nothing extra to install. Each row shows rank, title, artist, score, and one line per reason, with long reasons wrapped. It is the default output; `--list` switches back to the plain list format.
 
 **What I verified:** a test checks that the table contains the title, score, and every reason. I also ran it by itself and together with `--diverse` and checked that the penalty lines wrap cleanly.
+
+---
+
+# Final Project: Agentic Workflow Enhancement
+
+**Task given to the assistant (Claude Code).** Extend the Module 3 recommender into an applied AI system: an agent that takes a plain-English request, retrieves glossary documents, plans a taste profile, runs the existing recommender, critiques its own answer and revises it, with guardrails, logging and an evaluation harness.
+
+**Working style.** Plan first, then implement: I asked for a plan, approved or redirected it (offline planner instead of an LLM; skip the optional specialization stretch), and then had Claude build it. Prompts, summarized:
+
+- "Check whether Phase 0 (repo copy and folders) was completed correctly and take Phase 1 into account."
+- "Draft the Phase 1 plan."
+- "I do not know what is going on. Explain what is required in a way that makes sense to the average person."
+- Answers to the plan's open questions: offline planner; all four stretches unless one is not required; Claude may implement and explain afterwards.
+
+**What the agent does at each step.** Every request produces a trace of the steps below. The complete set of traces for all 20 evaluation requests is committed at [assets/agent_traces.md](assets/agent_traces.md) (regenerate with `python -m evaluation.run_eval --traces assets/agent_traces.md`); two are embedded here.
+
+1. `guardrail`: validate the request
+2. `retrieve`: find matching glossary and catalog documents
+3. `plan`: build the taste profile from them
+4. `recommend`: run the original scorer
+5. `critique`: confidence and issues
+6. `revise`: fix issues (max 2) and go back to step 4
+7. `decide`: status `ok` / `needs_review` / `no_match` / `rejected`
+
+### Trace: a request that needs a revision to remove repetition
+
+**coding-negated-loud**
+
+Request: `late-night coding, nothing too loud, a bit dreamy`
+
+```text
+1. guardrail: request accepted (49 chars)
+2. retrieve: 3 usable chunk(s): Coding [activities.md] via 'coding', catalog detailed_mood: dreamy [catalog] via 'dreamy', Louder [modifiers.md] via 'loud' (negated, so its effect is flipped)
+3. plan: genre=lofi, mood=focused, energy=0.25, acoustic=True, mode=balanced, diversity=False
+4. recommend: mode=balanced, top=Focus Flow
+5. critique: confidence 0.89 (high) [fit 0.81, evidence 1.00, separation 1.00]; issues: repetitive
+6. revise #1: top results repeat an artist or genre; turned the diversity penalty on
+7. recommend: mode=balanced, top=Focus Flow
+8. critique: confidence 0.89 (high) [fit 0.81, evidence 1.00, separation 1.00]
+9. decide: status=ok, confidence=0.89, revisions=1
+
+Top 3: Focus Flow (4.24); Library Rain (3.58); Midnight Coding (2.44)
+```
+
+### Trace: a request the catalog cannot satisfy (revision, then human-review flag)
+
+**guard-genre-missing-kpop**
+
+Request: `k-pop hits`
+
+```text
+1. guardrail: request accepted (10 chars)
+2. retrieve: 1 usable chunk(s): K-pop [genres.md] via 'k-pop'
+3. plan: genre=k-pop, mood=None, energy=0.5, acoustic=False, mode=balanced, diversity=False
+4. recommend: mode=balanced, top=Velvet Hours
+5. critique: confidence 0.12 (low) [fit 0.37, evidence 0.33, separation 0.18]; issues: genre_not_in_catalog, low_fit, repetitive
+6. revise #1: genre 'k-pop' is not in the catalog; dropped it and rely on mood and energy instead
+7. revise #1: top results repeat an artist or genre; turned the diversity penalty on
+8. recommend: mode=balanced, top=Velvet Hours
+9. critique: confidence 0.45 (low) [fit 0.85, evidence 0.00, separation 0.47]
+10. decide: status=needs_review, confidence=0.45, revisions=1
+
+Top 3: Velvet Hours (1.28); Block Party Anthem (1.16); Night Drive Loop (1.14)
+```
+
+**Verification.** The agent was checked by running it, not by reading it: a smoke test of 15 realistic requests exposed four real defects (negation broken by the stemmer, a too-generic trigger word, a critic that rewarded dropping the user's genre, and a repetition check that fired on requested genres). Each was fixed and given a regression test; details are in `model_card.md`, Sections 13 and 15.
+
