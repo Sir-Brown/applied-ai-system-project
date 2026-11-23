@@ -161,6 +161,9 @@ The scoring engine from Sections 1-9 is unchanged. The AI feature changes how a 
 - **The glossary is my opinion.** "Studying" maps to lofi, "workout" maps to pop, "date night" maps to R&B, "beach" maps to reggae. These are stereotypes. A person who studies to metal, or works out to country, is told what they "should" want. Each activity maps to exactly one genre, so the system cannot represent that taste varies.
 - **Keyword matching is brittle.** It understands only words I wrote down. "Something for when I miss summer" is not understood. Ambiguous words can mislead: "house" is read as the EDM genre even in "coffee house", and "mix" turns on the diversity penalty. I already had to remove "love" as a romantic-mood trigger because "I love jazz" was being read as a request for romance.
 - **Negation is simple.** A negation word only affects a keyword within 3 words in the same clause. "Not only jazz" or "anything but rock and metal" can be misread.
+- **An activity can override an explicit mood.** In "sad songs for a rainy day," the word "rainy" retrieves a jazz activity (+2 for genre) that outweighs "sad" (+1 for mood), so the #1 pick is a relaxed jazz song instead of the one melancholic song in the catalog (*Autumn Letters*, #2). My human review rated this a miss (Section 14) even though the automated test passed. I left it as a known limitation rather than special-casing it.
+- **No "nearest genre" fallback.** When a requested genre is missing (blues, k-pop), the agent drops it and says so, but it does not suggest a close alternative such as jazz or R&B for blues.
+- **Energy is a target, not "as loud as possible."** A gym request aims at 0.92, so *Gym Hero* (0.93) beats the louder, more aggressive *Iron Throne* (0.97).
 - **English only**, and only the English vocabulary in the glossary.
 - **Tiny catalog.** 18 songs, 13 of 15 genres with a single song. A "confidence" of 0.95 means "fits this small catalog well," not "this is what you would love." There is no blues, no k-pop and no "sad" cluster, so users who want those get a fallback and a warning.
 - **Confidence is a heuristic, not a probability.** It blends three named signals with weights I chose; it has not been calibrated against real user satisfaction.
@@ -197,15 +200,15 @@ Caveat: I wrote the cases and expected answers myself and adjusted the system af
 Automated checks confirm the system matches my expectations; a person should judge whether the answers are *good*. This table is a spot-check of the system's #1 pick for six requests (outputs copied from the evaluation run). **Reviewer: project author.**
 
 | Test Input | Evaluation Criteria | System's #1 pick | Automated check | Human verdict |
-|---|---|---|---|---|
-| "late-night coding, nothing too loud, a bit dreamy" | Calm, low-energy, focus-friendly | Focus Flow (lofi, energy 0.40) | Pass | _to be completed by reviewer_ |
-| "pump-up music for the gym" | Loud, high-energy | Gym Hero (pop, energy 0.93) | Pass | _to be completed by reviewer_ |
-| "sad songs for a rainy day" | Sad / mellow, slow | Coffee Shop Stories (jazz, relaxed) | Pass | _to be completed by reviewer_ |
-| "romantic dinner date" | Romantic, smooth | Velvet Hours (r&b, romantic) | Pass | _to be completed by reviewer_ |
-| "I want some blues" | Honest about missing genre | Fallback list, flagged *needs_review* at 0.45 | Pass | _to be completed by reviewer_ |
-| "no metal please, something calm" | No metal; calm | Moonlit Sonata Remix (classical, peaceful) | Pass | _to be completed by reviewer_ |
+|------------|---------------------|------------------|-----------------|---------------|
+| "late-night coding, nothing too loud, a bit dreamy" | Calm, low-energy, focus-friendly | Focus Flow (lofi, energy 0.40) | Pass | Good. The lofi, low energy suggestion is fitting for the sound and vibe requested. |
+| "pump-up music for the gym" | Loud, high-energy | Gym Hero (pop, energy 0.93) | Pass | Partly. This song has a very high energy level; perfect for the gym, but Iron Throne has higher energy and is more aggressive. |
+| "sad songs for a rainy day" | Sad / mellow, slow | Coffee Shop Stories (jazz, relaxed) | Pass | Bad. Another suggestion like Autumn Letters, Spacewalk Thoughts or Library ain would fit more as they are slower, have less energy, and fit the sad theme more than a jazz track would. |
+| "romantic dinner date" | Romantic, smooth | Velvet Hours (r&b, romantic) | Pass | Good. The suggestion fits the mood, tempo and energy requested. The genre (R&B) is also good for a romantic moment. |
+| "I want some blues" | Honest about missing genre | Fallback list, flagged *needs_review* at 0.45 | Pass | Partly. No blues available, but the system could've suggest Coffee Shop Stories (jazz) is as close as its list gets to blues. |
+| "no metal please, something calm" | No metal; calm | Moonlit Sonata Remix (classical, peaceful) | Pass | Good. Other songs would've worked as well, but this one satisfies the requirements. |
 
-Reviewer note on the one I would watch: for "sad songs for a rainy day" the #1 pick is a *relaxed* jazz song rather than the *melancholic* folk song (*Autumn Letters*, #2), because "rainy" retrieved a jazz activity that outweighs the mood. A human may reasonably disagree with that ranking.
+3 Good, 2 Partly, 1 Bad; the Bad case shows an activity-implied genre can override an explicit mood.
 
 ## 15. How I Collaborated with AI
 
