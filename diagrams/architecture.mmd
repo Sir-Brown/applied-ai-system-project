@@ -1,0 +1,43 @@
+flowchart TD
+    U([User request in plain English]) --> G1
+
+    subgraph SAFETY["Guardrails - src/guardrails.py"]
+        G1{"Input check:<br/>empty, too long,<br/>injection pattern?"}
+    end
+    G1 -- rejected --> R1[/"Safe message,<br/>logged, no crash"/]
+    G1 -- ok --> RET
+
+    subgraph RAG["Retrieval - src/retriever.py"]
+        K1[("data/knowledge/*.md<br/>activity, mood, genre,<br/>modifier glossaries")]
+        K2[("data/songs.csv<br/>catalog vocabulary")]
+        RET["Keyword retriever<br/>with negation handling"]
+        K1 --> RET
+        K2 --> RET
+    end
+
+    RET -- nothing relevant found --> R2[/"No-match message:<br/>asks for more detail"/]
+    RET -- retrieved chunks --> PLAN["Planner - src/agent.py<br/>chunks become a taste profile<br/>plus an assumptions list"]
+
+    subgraph LOOP["Agentic loop: act, check, revise (max 2 revisions)"]
+        PLAN --> REC["Recommender - src/recommender.py<br/>existing scoring modes and<br/>diversity penalty"]
+        REC --> CRIT["Critic - src/confidence.py<br/>fit, evidence, separation,<br/>catalog-gap checks"]
+        CRIT -- issues found --> REV["Revise: drop unmatched genre or mood,<br/>pick a better scoring mode,<br/>turn on diversity"]
+        REV --> REC
+    end
+
+    CRIT -- "confidence >= 0.5" --> OUT[/"Top 5 songs, reasons,<br/>confidence, sources"/]
+    CRIT -- "confidence < 0.5" --> HUMAN{{"Flagged: needs human review"}}
+    HUMAN --> OUT
+
+    PLAN -. every step .-> LOG[("logs/agent.log<br/>plus a step-by-step trace")]
+    CRIT -. every step .-> LOG
+    G1 -. rejections .-> LOG
+
+    subgraph TEST["Testing and evaluation"]
+        T1["pytest unit tests<br/>tests/"]
+        T2["Evaluation harness<br/>evaluation/run_eval.py<br/>pass/fail + confidence summary"]
+    end
+    T1 -. checks .-> RET
+    T1 -. checks .-> CRIT
+    T2 -. runs the full pipeline on predefined inputs .-> U
+    OUT -. "human spot-check, results<br/>recorded in model_card.md" .-> H([Human evaluator])
