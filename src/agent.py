@@ -88,7 +88,9 @@ class Planner:
         usable: List[Hit] = []
         for hit in hits:
             if hit.negated and not hit.chunk.negatable:
-                plan.assumptions.append(f"ignored '{hit.matched[0]}' because it was negated (e.g. 'no {hit.matched[0]}')")
+                note = f"ignored '{hit.matched[0]}' because it was negated (e.g. 'no {hit.matched[0]}')"
+                if note not in plan.assumptions:  # several chunks can match the same negated word
+                    plan.assumptions.append(note)
             else:
                 usable.append(hit)
 

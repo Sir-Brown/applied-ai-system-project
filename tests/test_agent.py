@@ -88,7 +88,8 @@ def test_negated_genre_is_ignored_not_recommended(agent):
     result = agent.ask("no metal please, something calm")
     assert result.plan.profile["favorite_genre"] is None
     assert all(song["genre"] != "metal" for song, _, _ in result.recommendations)
-    assert any("negated" in a for a in result.plan.assumptions)
+    negated_notes = [a for a in result.plan.assumptions if "negated" in a]
+    assert len(negated_notes) == 1  # catalog and glossary both match 'metal'; the note must not repeat
 
 
 def test_variety_modifier_turns_on_diversity(agent):
