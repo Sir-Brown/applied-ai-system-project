@@ -146,7 +146,7 @@ Sections 1-9 above describe the original VibeMatch 1.0 recommender. The sections
 ## 10. What Changed
 
 | Added | What it does |
-|---|---|
+|-------|--------------|
 | Retriever (RAG) | Looks up glossary documents ([data/knowledge/](data/knowledge/)) and the catalog's vocabulary to translate the user's words into a taste profile |
 | Planner | Builds the profile from what was retrieved, and records every assumption |
 | Critic | Scores confidence (fit, evidence, separation) and detects problems such as a requested genre that is not in the catalog |
@@ -173,7 +173,7 @@ The scoring engine from Sections 1-9 is unchanged. The AI feature changes how a 
 ## 12. Could It Be Misused, and How Is That Prevented?
 
 | Risk | Prevention in this system | Remaining gap |
-|---|---|---|
+|------|---------------------------|---------------|
 | **Prompt-injection / instruction text** in a request ("ignore previous instructions...") | A pattern filter rejects it with a friendly message. More importantly, request text is only ever used for keyword lookup: it is never executed, never sent to a language model, never used to build a path or command, so there is nothing for an injection to take over | The pattern list is small and a rephrased attack would pass the filter. It would still be harmless for the same structural reason, but this would have to be redesigned if an LLM were added |
 | **Oversized or junk input** (resource abuse) | 300-character limit, control-character stripping, "no letters" check | No rate limiting; this is a local tool |
 | **Steering users with the glossary** (promoting particular songs or genres by editing keywords) | Glossaries are plain text in version control, so changes are reviewable; malformed sections are skipped and logged | Nothing stops a malicious maintainer; changes need code review |

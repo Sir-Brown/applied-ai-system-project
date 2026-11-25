@@ -90,8 +90,6 @@ I asked for a design that keeps the code modular. The AI suggested treating a mo
 
 - "Check whether Phase 0 (repo copy and folders) was completed correctly and take Phase 1 into account."
 - "Draft the Phase 1 plan."
-- "I do not know what is going on. Explain what is required in a way that makes sense to the average person."
-- Answers to the plan's open questions: offline planner; all four stretches unless one is not required; Claude may implement and explain afterwards.
 
 **What the agent does at each step.** Every request produces a trace of the steps below. The complete set of traces for all 20 evaluation requests is committed at [assets/agent_traces.md](assets/agent_traces.md) (regenerate with `python -m evaluation.run_eval --traces assets/agent_traces.md`); two are embedded here.
 
